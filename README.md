@@ -1,124 +1,66 @@
-# Sistema de Controle de Acesso com Raspberry Pi Pico
+# Sistema de Controle de Servomotor e LEDs - SBC Labrador
 
-Projeto desenvolvido para simular um sistema de controle de acesso utilizando a Raspberry Pi Pico com FreeRTOS. O sistema monitora a entrada e saída de pessoas em um ambiente com capacidade limitada, fornecendo feedback visual e sonoro em tempo real sobre o status de ocupação.
+Projeto desenvolvido para controlar um servomotor com movimentação suave (0° a 180°) e dois LEDs indicadores utilizando o SBC Labrador. O sistema utiliza PWM via sysfs para controle preciso do servo e GPIO para gerenciamento dos LEDs, oferecendo controle sincronizado baseado na posição angular do motor.
 
 ## Objetivo
 
-Desenvolver um sistema embarcado de controle de acesso que gerencia a capacidade máxima de um ambiente (10 pessoas), utilizando semáforos de contagem do FreeRTOS para sincronização entre tarefas. O projeto oferece interface intuitiva com display OLED, indicadores LED RGB, matriz de LEDs animada e feedback sonoro.
+Desenvolver um sistema embarcado que controla um servomotor SG90 (ou similar) com movimentação suave e progressiva, sincronizando a ativação de LEDs indicadores conforme a posição angular. O projeto demonstra o uso de PWM hardware, controle GPIO e manipulação de arquivos do sistema Linux embarcado.
 
 ## Funcionalidades
 
-### Estado Vazio
-- **Condição**: 0 pessoas no ambiente
-- Display OLED mostra "PODE ENTRAR" 
-- LED RGB em **azul**
-- Matriz de LEDs com seta azul piscante
-- Buzzer inativo
+### Movimentação do Servomotor
+- **Varredura Angular**: Movimento contínuo de 0° a 180° e retorno
+- **Transição Suave**: 100 passos progressivos em cada direção
+- **Velocidade Controlada**: 20ms de delay entre cada passo
+- **Frequência PWM**: 50Hz (período de 20ms) - padrão para servomotores
+- **Precisão Angular**: Controle preciso via duty cycle (1ms a 2ms)
 
-### Estado Normal  
-- **Condição**: 1 a 8 pessoas no ambiente
-- Display OLED exibe contador atual e "PODE ENTRAR"
-- LED RGB em **verde**
-- Matriz de LEDs com seta verde piscante  
-- Buzzer inativo
+### Sistema de Indicação por LEDs
+- **LED 1 (GPIOC0)**: Aceso quando ângulo ≤ 90° (primeira metade do curso)
+- **LED 2 (GPIOC26)**: Aceso quando ângulo > 90° (segunda metade do curso)
+- **Feedback Visual**: Indicação clara da posição atual do servo
+- **Alternância Automática**: LEDs nunca acesos simultaneamente
 
-### Estado de Atenção
-- **Condição**: 9 pessoas (apenas 1 vaga restante)
-- Display OLED mostra "APENAS 1 VAGA"
-- LED RGB em **amarelo** 
-- Matriz de LEDs com seta amarela piscante
-- Buzzer inativo
+### Monitoramento em Tempo Real
+- **Display de Console**: Impressão contínua do ângulo atual
+- **Status dos LEDs**: Indicação ON/OFF para cada LED
+- **Feedback Sincronizado**: Atualização a cada movimento do servo
 
-### Estado de Alerta
-- **Condição**: 10 pessoas (capacidade máxima)
-- Display OLED exibe "NÚMERO MÁXIMO"
-- LED RGB em **vermelho**
-- Matriz de LEDs com seta vermelha piscante
-- Buzzer toca alerta quando tentativa de entrada é bloqueada
+## Componentes e Conexões Utilizados
 
-### Função Reset
-- **Acionamento**: Botão do joystick
-- Zera contador de pessoas instantaneamente
-- Exibe mensagem "SISTEMA RESETADO" no display
-- Buzzer toca sequência de confirmação (2 bips grave-agudo)
+| Componente | Interface | Pino/GPIO | Função |
+|------------|-----------|-----------|--------|
+| Servomotor SG90 | PWM0 | pwmchip0/pwm0 | Controle de posição angular |
+| LED 1 (Vermelho) | GPIO | GPIOC0 | Indicador 0°-90° |
+| LED 2 (Verde) | GPIO | GPIOC26 | Indicador 91°-180° |
+| Alimentação | 5V/GND | - | Alimentação do servomotor |
 
-## Componentes e GPIOs Utilizados
-
-| Componente | GPIO | Função |
-|------------|------|--------|
-| Botão A | GP5 | Entrada de pessoas |
-| Botão B (BOOTSEL) | GP6 | Saída de pessoas |
-| Botão Joystick | GP22 | Reset do sistema (via interrupção) |
-| Display OLED SSD1306 | GP14/GP15 | Exibe status e contador |
-| LED RGB (PWM) | GP11-13 | Indicação de estado por cores |
-| Buzzer (PWM) | GP21 | Alertas sonoros |
-| Matriz de LEDs 5x5 (PIO) | GP7 | Animações de setas coloridas |
-
-## Multitarefa com FreeRTOS
-
-O sistema utiliza FreeRTOS para execução concorrente e sincronizada:
-
-### Tarefas Implementadas
-- **vEntradaTask**: Monitora botão A para entrada de pessoas
-- **vSaidaTask**: Monitora botão B para saída de pessoas  
-- **vResetTask**: Processa reset via interrupção do joystick
-- **vDisplayTask**: Atualiza informações no display OLED
-- **vLeds_RGBTask**: Controla cores dos LEDs baseado no estado
-- **vBuzzerTask**: Gerencia alertas sonoros
-- **vMatriz_LedsTask**: Controla animações da matriz 5x5
-
-### Sincronização
-- **Semáforo de Contagem**: Controla número de pessoas (máx. 10)
-- **Semáforo Binário**: Sinaliza reset entre interrupção e tarefa
-- **Mutexes**: Protegem acesso ao display e variáveis compartilhadas
-
-## Técnicas Implementadas
-
-### Hardware
-- **PWM**: Controle de brilho dos LEDs RGB e frequência do buzzer
-- **PIO**: Controle customizado da matriz de LEDs WS2812B
-- **Interrupções GPIO**: Detecção do botão de reset com debounce
-- **I2C**: Comunicação com display OLED
-
-### Software  
-- **Debounce por Software**: Filtro de 250ms para botões
-- **Debounce por Hardware**: Filtro de 300ms para interrupção
-- **Semáforos de Contagem**: Implementação de fila de pessoas
-- **Proteção de Concorrência**: Mutexes para recursos compartilhados
-- **Máquina de Estados**: Controle visual baseado em número de pessoas
-
-## Estados do Sistema
+### Diagrama de Conexão
 
 ```
-VAZIO (0) ? NORMAL (1-8) ? ATENÇÃO (9) ? ALERTA (10)
-    ?           ?              ?           ?
-   Azul       Verde        Amarelo     Vermelho
+SBC Labrador
+├── PWM0 ──────────► Servomotor (Sinal)
+├── GPIOC0 ────────► LED1 + Resistor 330Ω ──► GND
+├── GPIOC26 ───────► LED2 + Resistor 330Ω ──► GND
+└── 5V/GND ────────► Servomotor (Alimentação)
 ```
 
-## Estrutura do Código
+## Especificações Técnicas
 
-```
-??? Configurações de Hardware
-??? Variáveis Globais e Semáforos  
-??? Handlers de Interrupção
-??? Funções de Debounce
-??? Controle PWM e PIO
-??? Animações da Matriz de LEDs
-??? Controle do Buzzer
-??? 7 Tarefas FreeRTOS
-??? Função Principal (main)
-```
+### Parâmetros PWM
+- **Período**: 20.000.000 ns (20ms) → 50Hz
+- **Duty Cycle Mínimo**: 1.000.000 ns (1ms) → 0°
+- **Duty Cycle Máximo**: 2.000.000 ns (2ms) → 180°
+- **Duty Cycle Neutro**: 1.500.000 ns (1.5ms) → 90°
 
-## Como Usar
+### Parâmetros de Movimento
+- **Número de Passos**: 100 (ida e volta)
+- **Incremento por Passo**: 10.000 ns
+- **Delay entre Passos**: 20ms
+- **Tempo Total (0°→180°)**: ~2 segundos
+- **Tempo Total (180°→0°)**: ~2 segundos
 
-1. **Entrada**: Pressione o Botão A para adicionar uma pessoa
-2. **Saída**: Pressione o Botão B para remover uma pessoa  
-3. **Reset**: Pressione o botão do joystick para zerar o sistema
-4. **Monitoramento**: Observe o display OLED e LEDs para status atual
-
-## Autor
-
-**Mateus Moreira da Silva**  
-Data: 26-05-2025
-
-GitHub: https://github.com/Mateus-MDS/Controle-de-Acesso.git
+### Configurações GPIO
+- **Chip GPIO**: gpiochip2 (GPIO Grupo C)
+- **Modo de Operação**: Output (saída digital)
+- **Controle**: Via biblioteca libgpiod
